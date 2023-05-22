@@ -1,10 +1,18 @@
 const keywords = [
   'declare',
   'function',
-  'return'
-]
+  'return',
+  'const'
+] as const;
 
-const TokenSpec: [RegExp, Nullable<Token['type']>][] = [
+type TokenType = Token<Uppercase<typeof keywords[number]>>['type'];
+
+const keyspec = keywords.map((keyword: typeof keywords[number]) => {
+  return [new RegExp(`^${keyword}`), keyword.toUpperCase()] as [RegExp, Uppercase<typeof keyword>];
+});
+
+
+const TokenSpec: [RegExp, Nullable<TokenType>, any?][] = [
   //Whitespace
   [/^\s+/, null],
 
@@ -13,10 +21,30 @@ const TokenSpec: [RegExp, Nullable<Token['type']>][] = [
   [/^\/\*[\s\S]*?\*\//, null],
 
   //keywords
-  [new RegExp(`^${keywords.join('|')}`), 'KEYWORD'],
+  ...keywords.map((keyword: typeof keywords[number]) =>
+    [new RegExp(`^${keyword}`), keyword.toUpperCase(), ''] as [RegExp, Uppercase<typeof keyword>, string]
+  ),
 
   //Semicolon
-  [/^;+/, ';'],
+  [/^;+/, ';', ''],
+
+  //Colon
+  [/^:+/, ':', ''],
+
+  //Open Parentheses
+  [/^\(+/, '(', ''],
+
+  //Close Parentheses
+  [/^\)+/, ')', ''],
+  
+  //Comma
+  [/^,+/, ',', ''],
+
+  //Equals
+  [/^=+/, '=', ''],
+
+  //Identifier
+  [/^[a-zA-Z$#_][a-zA-Z0-9$#_]*/, 'IDENTIFIER'],
 
   //Numbers
   [/^\d+/, 'NUMBER'],
@@ -44,20 +72,21 @@ export class Tokenizer {
     return this._cursor >= this._string.length;
   }
 
-  getNextToken(): Token | null {
+  getNextToken(): Token<Uppercase<typeof keywords[number]>> | null {
     if (!this.hasMoreTokens()) return null;
 
     const token = this._string.slice(this._cursor);
 
-    for (const [regexp, type] of TokenSpec) {
+    for (const [regexp, type, defaultValue] of TokenSpec) {
       const [value] = regexp.exec(token) ?? [null];
       if (value == null) continue; //cant match
       this._cursor += value.length;
       if (type == null) return this.getNextToken(); //ignore token
-      return { type, value };
+      // console.log({ type, value: defaultValue ?? value });
+      return { type, value: defaultValue ?? value };
     }
 
-    throw SyntaxError(`Unexpected Token: '${token[0]}'\n\t${/^.*$/.exec(token)}`);
+    throw SyntaxError(`Unexpected Token: '${token.split(' ')[0]}'\n\t${/^.*$/.exec(token)}`);
   }
 
 }

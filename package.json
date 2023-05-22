@@ -4,7 +4,7 @@
   "description": "learning to parse code and compile to llvm ir",
   "type": "module",
   "scripts": {
-    "dev": "nodemon dist/test/run.test.js --watch test.ts",
+    "dev": "nodemon dist/test/run.test.js --watch test/test.tsn --watch dist",
     "dev:clang": "nodemon -L --exec \"npm run clang && ./dist/ts-native && lli dist/out.ll\" --watch src/compiler/TSNative.h --watch src/compiler/ts-native.cpp",
     "clang": "clang++ -o dist/ts-native `llvm-config --cxxflags --ldflags --system-libs --libs core` src/compiler/ts-native.cpp",
     "tsc:watch": "tsc -w",
