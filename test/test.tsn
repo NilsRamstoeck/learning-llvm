@@ -1,11 +1,10 @@
 //Comment
 /**
  * Block Comment
- */
+ */ 
 
 
 declare function print(message: string): void;
-
-const hello = "Hello World!";
-
+ 
+const hello = "Hello World! 15";
 print(hello);

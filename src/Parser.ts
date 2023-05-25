@@ -23,7 +23,9 @@ export class Parser {
     const body: Statement[] = [];
 
     while (this._token) {
-      body.push(this.Statement());
+      try {
+        body.push(this.Statement());
+      } catch (e) { console.error(e); break; };
     }
 
     return {
@@ -45,7 +47,9 @@ export class Parser {
     this._eat('{');
 
     while (!this._optional('}')) {
-      body.push(this.Statement());
+      try {
+        body.push(this.Statement());
+      } catch (e) { console.error(e); };
     }
 
     return {
@@ -143,7 +147,7 @@ export class Parser {
     const value = this.Expression();
 
     return {
-      type: 'ConstantDeclaration',
+      type: 'ConstantDefinition',
       id,
       value
     };
@@ -175,7 +179,7 @@ export class Parser {
    */
   Type(): Type {
     this._eat(':');
-    this.Identifier();
+    return this.Identifier().name;
   }
 
   /**
@@ -191,12 +195,17 @@ export class Parser {
     this._eat('(');
     const params: Identifier[] = [];
 
-    while (this._token?.type == 'IDENTIFIER') {
-      params.push(this.Identifier());
-      //@ts-ignore this.Identifier changes this._token
-      if (this._token?.type == ':') this.Type();
-      if (!this._optional(',')) break;
+    if (!this._token) {
+      throw new SyntaxError(
+        `Unexpected end of input, expected Function Parameters`
+      );
     }
+
+    do {
+      if (this._token.type == ')') break;
+      params.push(this.Identifier());
+      if (this._token?.type == ':') params[params.length - 1].valueType = this.Type();
+    } while (this._optional(','));
 
     this._eat(')');
 
@@ -213,12 +222,13 @@ export class Parser {
   Arguments(): Expression[] {
     this._eat('(');
     const args: Expression[] = [];
-    while (this._token?.type == 'IDENTIFIER') {
-      args.push(this.Identifier());
-      //@ts-ignore this.Identifier changes this._token
-      if (!this._optional(',')) break;
-    }
+
+    do {
+      args.push(this.Expression());
+    } while (this._optional(','));
+
     this._eat(')');
+
     return args;
   };
 
@@ -227,7 +237,7 @@ export class Parser {
    *   : Literal
    *
    */
-  Expression() {
+  Expression():Expression {
     if (!this._token) {
       throw new SyntaxError(
         `Unexpected end of input, expected Expression`
@@ -235,7 +245,11 @@ export class Parser {
     }
 
     switch (this._token.type) {
-      case 'IDENTIFIER': return this.CallExpression();
+      case 'IDENTIFIER':
+        switch (this._tokenizer.getNextToken(true)?.type) {
+          case '(': return this.CallExpression();
+          default: return this.Identifier();
+        };
       case 'NUMBER': return this.NumericLiteral();
       case 'STRING': return this.StringLiteral();
     }
@@ -317,12 +331,16 @@ export class Parser {
   _optional<T extends NonNullable<typeof this._token>['type']>(tokenType: T) {
     const token = this._token;
     const consume = token?.type == tokenType;
-    if (consume) this._token = this._tokenizer.getNextToken();
+    if (consume) this._eat(tokenType);
+    // console.log({ token, ntoke: this._token, eaten:tokenType });
+
     return consume;
   }
 
   _eat<T extends NonNullable<typeof this._token>['type']>(tokenType: T) {
     const token = this._token;
+    console.log(token);
+
     if (token == null) {
       throw new SyntaxError(
         `Unexpected end of input, expected: "${tokenType}"`

@@ -24,7 +24,7 @@ declare interface ASTNode {
   type: string;
 }
 
-declare type Type = void;
+declare type Type = any;
 
 declare class Program implements ASTNode {
   type: 'Program';
@@ -33,7 +33,7 @@ declare class Program implements ASTNode {
 
 declare class Identifier implements ASTNode {
   type: 'Identifier';
-  valueType?: string;
+  valueType?: any;
   name: string;
 }
 
@@ -63,7 +63,9 @@ declare class ConstantDeclaration implements Declaration {
   id: Identifier;
 }
 
-declare class ConstantDefinition extends ConstantDeclaration {
+declare class ConstantDefinition implements Statement {
+  type: "ConstantDefinition";
+  id: Identifier;
   value: Expression;
 }
 

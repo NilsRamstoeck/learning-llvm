@@ -36,7 +36,7 @@ const TokenSpec: [RegExp, Nullable<TokenType>, any?][] = [
 
   //Close Parentheses
   [/^\)+/, ')', ''],
-  
+
   //Comma
   [/^,+/, ',', ''],
 
@@ -72,7 +72,7 @@ export class Tokenizer {
     return this._cursor >= this._string.length;
   }
 
-  getNextToken(): Token<Uppercase<typeof keywords[number]>> | null {
+  getNextToken(lookahead = false): Token<Uppercase<typeof keywords[number]>> | null {
     if (!this.hasMoreTokens()) return null;
 
     const token = this._string.slice(this._cursor);
@@ -80,7 +80,7 @@ export class Tokenizer {
     for (const [regexp, type, defaultValue] of TokenSpec) {
       const [value] = regexp.exec(token) ?? [null];
       if (value == null) continue; //cant match
-      this._cursor += value.length;
+      if (!lookahead) this._cursor += value.length;
       if (type == null) return this.getNextToken(); //ignore token
       // console.log({ type, value: defaultValue ?? value });
       return { type, value: defaultValue ?? value };
@@ -88,5 +88,4 @@ export class Tokenizer {
 
     throw SyntaxError(`Unexpected Token: '${token.split(' ')[0]}'\n\t${/^.*$/.exec(token)}`);
   }
-
 }

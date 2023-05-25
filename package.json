@@ -4,11 +4,15 @@
   "description": "learning to parse code and compile to llvm ir",
   "type": "module",
   "scripts": {
-    "dev": "nodemon dist/test/run.test.js --watch test/test.tsn --watch dist",
-    "dev:clang": "nodemon -L --exec \"npm run clang && ./dist/ts-native && lli dist/out.ll\" --watch src/compiler/TSNative.h --watch src/compiler/ts-native.cpp",
+    "dev": "nodemon dist/test/run.test.js --watch dist/test --watch dist/src --watch test/test.tsn",
+    "dev:clang": "nodemon -L --exec \"npm run tsnative\" --watch src/compiler/TSNative.h --watch src/compiler/ts-native.cpp --watch dist/ast.json",
+    "dev:runtime": "nodemon -L --exec \"npm run clang:runtime \" --watch src/compiler/runtime/Runtime.cpp",
     "clang": "clang++ -o dist/ts-native `llvm-config --cxxflags --ldflags --system-libs --libs core` src/compiler/ts-native.cpp",
+    "clang:runtime": "clang++ -Wall -O1 -std=c++11 -emit-llvm -stdlib=libc++ -S src/compiler/runtime/Runtime.cpp -o dist/runtime.ll",
     "tsc:watch": "tsc -w",
-    "tsc:watch:test": "tsc -w -p test.tsconfig.json"
+    "tsc:watch:test": "tsc -w -p test.tsconfig.json",
+    "tsnative": "npm run clang && ./dist/ts-native && npm run lli",
+    "lli": "lli -load /lib/x86_64-linux-gnu/libc++.so.1 -extra-module=dist/runtime.ll dist/out.ll"
   },
   "keywords": [],
   "author": "",
