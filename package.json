@@ -18,6 +18,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "acorn": "^8.8.2",
+    "acorn-typescript": "^1.2.10",
     "nodemon": "^2.0.22",
     "typescript": "^5.0.4"
   },

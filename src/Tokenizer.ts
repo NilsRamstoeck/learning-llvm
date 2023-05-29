@@ -37,6 +37,15 @@ const TokenSpec: [RegExp, Nullable<TokenType>, any?][] = [
   //Close Parentheses
   [/^\)+/, ')', ''],
 
+  //Open Braces
+  [/^\{+/, '{', ''],
+
+  //Close Braces
+  [/^\}+/, '}', ''],
+
+  //TemplateLiteral
+  [/^`+/, '`', ''],
+
   //Comma
   [/^,+/, ',', ''],
 
@@ -83,7 +92,12 @@ export class Tokenizer {
       if (!lookahead) this._cursor += value.length;
       if (type == null) return this.getNextToken(); //ignore token
       // console.log({ type, value: defaultValue ?? value });
-      return { type, value: defaultValue ?? value };
+      return {
+        type,
+        value: defaultValue ?? value,
+        start: this._cursor - value.length,
+        stop: this._cursor,
+      };
     }
 
     throw SyntaxError(`Unexpected Token: '${token.split(' ')[0]}'\n\t${/^.*$/.exec(token)}`);

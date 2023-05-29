@@ -1,3 +1,4 @@
+import { UnexpectedTokenError } from './errors/TSNativeError.js';
 import { Tokenizer } from './Tokenizer.js';
 
 export class Parser {
@@ -8,7 +9,14 @@ export class Parser {
 
     this._tokenizer = new Tokenizer(string);
     this._token = this._tokenizer.getNextToken();
-    return this.Program();
+    UnexpectedTokenError.source = string;
+
+    try {
+      return this.Program();
+    } catch (e: any) {
+      console.log((e as Error));
+      // console.log((e as Error).message);
+    }
 
   }
 
@@ -23,14 +31,16 @@ export class Parser {
     const body: Statement[] = [];
 
     while (this._token) {
-      try {
-        body.push(this.Statement());
-      } catch (e) { console.error(e); break; };
+
+      body.push(this.Statement());
+
     }
 
     return {
       type: 'Program',
-      body
+      body,
+      start: 0,
+      stop: body[body.length - 1].stop
     };
   }
 
@@ -44,17 +54,19 @@ export class Parser {
   BlockStatement(): BlockStatement {
     const body: BlockStatement['body'] = [];
 
-    this._eat('{');
+    const startToken = this._eat('{');
 
-    while (!this._optional('}')) {
-      try {
-        body.push(this.Statement());
-      } catch (e) { console.error(e); };
+    while (this._token?.type != '}') {
+      body.push(this.Statement());
     }
+
+    const stopToken = this._eat('}');
 
     return {
       type: 'BlockStatement',
-      body
+      body,
+      start: startToken.start,
+      stop: stopToken.stop
     };
   }
 
@@ -71,16 +83,34 @@ export class Parser {
       );
     }
 
+    let statement: Nullable<Statement> = null;
+
+    const token = this._token;
+
+    console.log({ token });
+
     switch (this._token.type) {
-      case "DECLARE": return this.Declaration();
-      // case "FUNCTION": return this.Function();
-      case "NUMBER": return this.NumericLiteral();
-      case "STRING": return this.StringLiteral();
-      case "CONST": return this.ConstantDefinition();
-      case "IDENTIFIER": return this.Expression();
+      case "DECLARE": statement = this.Declaration(); break;
+      case "FUNCTION": statement = this.FunctionDefinition(); break;
+
+      case "NUMBER":
+      case "STRING": statement = this.Literal(); break;
+
+      case "CONST": statement = this.ConstantDefinition(); break;
+
+      case "`":
+      case "IDENTIFIER": statement = this.Expression(); break;
     }
 
-    throw new SyntaxError(`Unexpected Token:\n\tExpected Statement, got ${printToken(this._token)}`);
+    console.log({token, statement});
+    
+
+    if (!statement)
+      throw new UnexpectedTokenError('Statement', token);
+
+    const { stop } = this._eat(';');
+    statement.stop = stop ?? statement.stop;
+    return statement;
   }
 
   /**
@@ -93,19 +123,18 @@ export class Parser {
    *   ;
    */
   Declaration(): Declaration {
-    this._eat('DECLARE');
-
     if (!this._token) {
       throw new SyntaxError(
         `Unexpected end of input, expected Declaration`
       );
     }
+    this._eat('DECLARE');
 
     switch (this._token.type) {
       case 'FUNCTION': return this.FunctionDeclaration();
     }
 
-    throw new SyntaxError(`Unexpected Token:\n\tExpected Declaration, got ${printToken(this._token)}`);
+    throw new UnexpectedTokenError('Declaration', this._token);
   }
 
   /**
@@ -116,19 +145,49 @@ export class Parser {
    *   ;
    */
   FunctionDeclaration(): FunctionDeclaration {
-    this._eat('FUNCTION');
     if (!this._token) {
       throw new SyntaxError(
         `Unexpected end of input, expected Function Declaration`
       );
     }
 
+    const { start } = this._eat('FUNCTION');
     const id = this.Identifier();
     const params = this.Parameters();
-    this.Type();
-    this._optional(';');
+    const { stop } = this.Type();
 
-    return { type: "FunctionDeclaration", id, params };
+    return {
+      type: "FunctionDeclaration",
+      id,
+      params,
+      start,
+      stop
+    };
+
+  }
+
+  FunctionDefinition(): FunctionDefinition {
+    if (!this._token) {
+      throw new SyntaxError(
+        `Unexpected end of input, expected Function Definition`
+      );
+    }
+
+    const { start } = this._eat('FUNCTION');
+    const id = this.Identifier();
+    const params = this.Parameters();
+    const type: Nullable<Type> = this._token.type == ':' ? this.Type() : null;
+
+    const body = this.BlockStatement();
+
+    return {
+      type: 'FunctionDefinition',
+      id,
+      params,
+      body,
+      start,
+      stop: body.stop
+    };
 
   }
 
@@ -139,7 +198,7 @@ export class Parser {
    *  | TYPE
    */
   ConstantDefinition(): ConstantDefinition {
-    this._eat('CONST');
+    const { start } = this._eat('CONST');
 
     const id = this.Identifier();
     if (this._token?.type == ':') this.Type;
@@ -149,7 +208,9 @@ export class Parser {
     return {
       type: 'ConstantDefinition',
       id,
-      value
+      value,
+      start,
+      stop: value.stop
     };
   }
 
@@ -160,10 +221,11 @@ export class Parser {
    */
   Identifier(): Identifier {
     const token = this._eat('IDENTIFIER');
-
     return {
       type: 'Identifier',
       name: token.value,
+      start: token.start,
+      stop: token.stop
     };
   }
 
@@ -179,7 +241,7 @@ export class Parser {
    */
   Type(): Type {
     this._eat(':');
-    return this.Identifier().name;
+    return this.Identifier();
   }
 
   /**
@@ -237,7 +299,7 @@ export class Parser {
    *   : Literal
    *
    */
-  Expression():Expression {
+  Expression(): Expression {
     if (!this._token) {
       throw new SyntaxError(
         `Unexpected end of input, expected Expression`
@@ -254,7 +316,7 @@ export class Parser {
       case 'STRING': return this.StringLiteral();
     }
 
-    throw new SyntaxError(`Unexpected Token:\n\tExpected Expression, got ${printToken(this._token)}`);
+    throw new UnexpectedTokenError('Expression', this._token);
   }
 
   /**
@@ -270,11 +332,12 @@ export class Parser {
   CallExpression(): CallExpression {
     const callee = this.Identifier();
     const args = this.Arguments();
-    this._optional(';');
     return {
       type: 'CallExpression',
       callee,
-      arguments: args
+      arguments: args,
+      start: callee.start,
+      stop: args[args.length - 1].stop
     };
   }
 
@@ -296,7 +359,7 @@ export class Parser {
       case 'STRING': return this.StringLiteral();
     }
 
-    throw new SyntaxError(`Unexpected Token:\n\tExpected Literal, got ${printToken(this._token)}`);
+    throw new UnexpectedTokenError('Literal', this._token);
   }
 
   /**
@@ -306,10 +369,11 @@ export class Parser {
      */
   StringLiteral(): StringLiteral {
     const token = this._eat('STRING');
-    this._optional(';');
     return {
       type: 'StringLiteral',
-      value: token.value.slice(1, -1)
+      value: token.value.slice(1, -1),
+      start: token.start,
+      stop: token.stop
     };
   }
 
@@ -321,10 +385,11 @@ export class Parser {
      */
   NumericLiteral(): NumericLiteral {
     const token = this._eat('NUMBER');
-    this._optional(';');
     return {
       type: 'NumericLiteral',
-      value: Number(token.value)
+      value: Number(token.value),
+      start: token.start,
+      stop: token.stop
     };
   }
 
@@ -339,7 +404,7 @@ export class Parser {
 
   _eat<T extends NonNullable<typeof this._token>['type']>(tokenType: T) {
     const token = this._token;
-    console.log(token);
+    // console.log(token);
 
     if (token == null) {
       throw new SyntaxError(
@@ -348,16 +413,10 @@ export class Parser {
     }
 
     if (tokenType != token.type) {
-      throw new SyntaxError(
-        `Unexpected token:\n\tgot:"${printToken(token)}"\n\texpected: "${tokenType}"`
-      );
+      throw new UnexpectedTokenError(tokenType, token);
     }
 
     this._token = this._tokenizer.getNextToken();
     return token;
   }
-}
-
-function printToken(token: Token<any>): string {
-  return token.value ? `${token.type}(${token.value})` : `${token.type}`;
 }

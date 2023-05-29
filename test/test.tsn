@@ -1,10 +1,15 @@
 //Comment
 /**
  * Block Comment
- */ 
+ */
 
 
 declare function print(message: string): void;
- 
-const hello = "Hello World! 15";
-print(hello);
+
+const flachtopus = 'Flachtopus';
+
+function sayHelloTo(s: string) {
+  print(`Hello ${s}!`);
+}
+
+sayHelloTo(flachtopus);
